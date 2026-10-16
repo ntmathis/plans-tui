@@ -67,7 +67,8 @@ Keys in the TUI:
 | Key | Action |
 |-----|--------|
 | `j` / `k`, arrows | move |
-| `Tab` | toggle the detail pane |
+| `Tab` | toggle the detail pane (right side when wide, bottom half when tall or narrow) |
+| mouse | wheel scrolls · click selects · drag the detail pane's border to resize |
 | `/` | fuzzy filter — Enter commits, Esc clears |
 | `1`–`5` | toggle TODO / WIP / UAT / DONE / DROPPED |
 | `a` | show every status |
