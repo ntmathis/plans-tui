@@ -991,15 +991,19 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
         }
     }
 
-    app.detail_lines = lines.len();
-    let scroll = app.detail_scroll;
-    frame.render_widget(
-        Paragraph::new(lines)
-            .block(block)
-            .wrap(Wrap { trim: false })
-            .scroll((scroll, 0)),
-        area,
-    );
+    let paragraph = detail_paragraph(lines);
+    // Rows after wrapping, inside the left and right borders.
+    app.detail_lines = paragraph.line_count(area.width.saturating_sub(2));
+    app.detail_scroll = app
+        .detail_scroll
+        .min(app.detail_lines.saturating_sub(1) as u16);
+    frame.render_widget(paragraph.block(block).scroll((app.detail_scroll, 0)), area);
+}
+
+/// The detail text as a wrapping paragraph, before the block is attached so
+/// its wrapped height can be measured.
+fn detail_paragraph(lines: Vec<Line<'static>>) -> Paragraph<'static> {
+    Paragraph::new(lines).wrap(Wrap { trim: false })
 }
 
 /// The plan body as styled lines. Drops leading blanks and a first line that
@@ -1419,6 +1423,13 @@ mod tests {
         assert_eq!(text.last().unwrap(), "END-MARKER");
         assert!(!text.iter().any(|l| l == "# My Plan"));
         assert_eq!(text.len(), 63);
+    }
+
+    #[test]
+    fn wrapped_text_counts_more_rows_than_lines() {
+        let long = "x".repeat(500);
+        let paragraph = detail_paragraph(vec![Line::raw(long)]);
+        assert!(paragraph.line_count(38) > 1);
     }
 
     #[test]
