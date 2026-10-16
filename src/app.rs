@@ -1541,6 +1541,103 @@ pub fn contains(area: Rect, column: u16, row: u16) -> bool {
     column >= area.x && column < area.x + area.width && row >= area.y && row < area.y + area.height
 }
 
+/// Side-by-side needs at least this many body columns; narrower bodies stack.
+#[allow(dead_code)] // wired up in the ui step
+pub const SIDE_BY_SIDE_MIN_WIDTH: u16 = 100;
+/// Smallest list or detail extent a split may leave: columns side-by-side,
+/// rows stacked.
+#[allow(dead_code)] // wired up in the ui step
+pub const MIN_PANE_COLS: u16 = 30;
+#[allow(dead_code)] // wired up in the ui step
+pub const MIN_PANE_ROWS: u16 = 5;
+/// Detail share bounds and defaults, in per-mille of the body.
+#[allow(dead_code)] // wired up in the ui step
+pub const SPLIT_MIN: u16 = 100;
+#[allow(dead_code)] // wired up in the ui step
+pub const SPLIT_MAX: u16 = 900;
+#[allow(dead_code)] // wired up in the ui step
+pub const DEFAULT_SPLIT_SIDE: u16 = 450;
+#[allow(dead_code)] // wired up in the ui step
+pub const DEFAULT_SPLIT_STACKED: u16 = 500;
+
+/// Which way the body is divided between list and detail.
+#[allow(dead_code)] // wired up in the ui step
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SplitAxis {
+    /// Detail on the right.
+    Side,
+    /// Detail below the list.
+    Stacked,
+}
+
+/// Cells are roughly twice as tall as wide, so a body narrower than twice its
+/// height is portrait on screen: stack the detail pane under the list.
+#[allow(dead_code)] // wired up in the ui step
+pub fn split_axis(body: Rect) -> SplitAxis {
+    if body.width >= SIDE_BY_SIDE_MIN_WIDTH && body.width >= body.height.saturating_mul(2) {
+        SplitAxis::Side
+    } else {
+        SplitAxis::Stacked
+    }
+}
+
+/// Divide `body` into (list, detail). `permille` is the detail pane's share
+/// along `axis`. `None` when the body is too small to fit both panes.
+#[allow(dead_code)] // wired up in the ui step
+pub fn split_body(body: Rect, axis: SplitAxis, permille: u16) -> Option<(Rect, Rect)> {
+    let (len, min) = match axis {
+        SplitAxis::Side => (body.width, MIN_PANE_COLS),
+        SplitAxis::Stacked => (body.height, MIN_PANE_ROWS),
+    };
+    if len < 2 * min {
+        return None;
+    }
+    let detail_len = (((len as u32 * permille as u32 + 500) / 1000) as u16).clamp(min, len - min);
+    let list_len = len - detail_len;
+    Some(match axis {
+        SplitAxis::Side => (
+            Rect {
+                width: list_len,
+                ..body
+            },
+            Rect {
+                x: body.x + list_len,
+                width: detail_len,
+                ..body
+            },
+        ),
+        SplitAxis::Stacked => (
+            Rect {
+                height: list_len,
+                ..body
+            },
+            Rect {
+                y: body.y + list_len,
+                height: detail_len,
+                ..body
+            },
+        ),
+    })
+}
+
+/// The detail share that puts the divider under the pointer while dragging.
+#[allow(dead_code)] // wired up in the ui step
+pub fn split_from_pointer(body: Rect, axis: SplitAxis, column: u16, row: u16) -> u16 {
+    let (start, len, pos) = match axis {
+        SplitAxis::Side => (body.x, body.width, column),
+        SplitAxis::Stacked => (body.y, body.height, row),
+    };
+    if len == 0 {
+        return match axis {
+            SplitAxis::Side => DEFAULT_SPLIT_SIDE,
+            SplitAxis::Stacked => DEFAULT_SPLIT_STACKED,
+        };
+    }
+    let end = start + len;
+    let detail = end - pos.clamp(start, end);
+    (detail as u32 * 1000 / len as u32).clamp(SPLIT_MIN as u32, SPLIT_MAX as u32) as u16
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2207,5 +2304,45 @@ mod tests {
             );
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn split_axis_follows_shape() {
+        assert_eq!(split_axis(Rect::new(0, 1, 200, 50)), SplitAxis::Side);
+        assert_eq!(split_axis(Rect::new(0, 1, 120, 40)), SplitAxis::Side);
+        assert_eq!(split_axis(Rect::new(0, 1, 90, 60)), SplitAxis::Stacked);
+        assert_eq!(split_axis(Rect::new(0, 1, 80, 22)), SplitAxis::Stacked);
+        assert_eq!(split_axis(Rect::new(0, 1, 110, 70)), SplitAxis::Stacked);
+    }
+
+    #[test]
+    fn split_body_divides_and_clamps() {
+        let (list, detail) = split_body(Rect::new(0, 1, 200, 50), SplitAxis::Side, 450).unwrap();
+        assert_eq!(list, Rect::new(0, 1, 110, 50));
+        assert_eq!(detail, Rect::new(110, 1, 90, 50));
+
+        let body = Rect::new(0, 1, 100, 40);
+        assert_eq!(split_body(body, SplitAxis::Side, 900).unwrap().1.width, 70);
+        assert_eq!(split_body(body, SplitAxis::Side, 100).unwrap().1.width, 30);
+
+        let (list, detail) = split_body(Rect::new(0, 1, 90, 40), SplitAxis::Stacked, 500).unwrap();
+        assert_eq!(list, Rect::new(0, 1, 90, 20));
+        assert_eq!(detail, Rect::new(0, 21, 90, 20));
+        assert!(split_body(Rect::new(0, 1, 90, 9), SplitAxis::Stacked, 500).is_none());
+    }
+
+    #[test]
+    fn split_round_trip_lands_under_pointer() {
+        let body = Rect::new(0, 1, 150, 40);
+        let p = split_from_pointer(body, SplitAxis::Side, 100, 5);
+        assert_eq!(split_body(body, SplitAxis::Side, p).unwrap().1.x, 100);
+
+        let body = Rect::new(5, 1, 237, 60);
+        let p = split_from_pointer(body, SplitAxis::Side, 120, 5);
+        assert_eq!(split_body(body, SplitAxis::Side, p).unwrap().1.x, 120);
+
+        let body = Rect::new(0, 1, 80, 60);
+        let p = split_from_pointer(body, SplitAxis::Stacked, 5, 31);
+        assert_eq!(split_body(body, SplitAxis::Stacked, p).unwrap().1.y, 31);
     }
 }
