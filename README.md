@@ -45,6 +45,12 @@ location when it is missing. The full convention — including what each status
 means and how plans move between them — is in
 [AGENTS.md](https://github.com/ntmathis/dotfiles/blob/main/AGENTS.md).
 
+The detail pane shows the full plan, scrollable to the last line. A plan with
+no frontmatter `status:` gets one inferred: first from a `**Status:**` line in
+the first 15 lines of the body, then from a legacy `TODO-`/`WIP-`/`UAT-`/
+`DONE-`/`DROPPED-` filename prefix. Inferred statuses show `(inferred)` in the
+detail pane and `"status_inferred": true` in JSON.
+
 ## Usage
 
 ```
