@@ -1,1 +1,4 @@
 /target
+
+# Plan files stay local; they are not part of the public repo.
+/docs/plans/
