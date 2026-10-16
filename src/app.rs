@@ -474,6 +474,15 @@ pub struct App {
     pub list_area: Rect,
     pub list_offset: usize,
     pub detail_area: Rect,
+    /// Detail share in per-mille of the body, per axis; changed by dragging the divider.
+    pub detail_split_side: u16,
+    pub detail_split_stacked: u16,
+    /// A left-drag on the detail pane's divider is in progress.
+    #[allow(dead_code)] // wired up in the ui step
+    pub dragging_split: bool,
+    /// Body geometry and axis from the last draw, for mapping drags.
+    pub body_area: Rect,
+    pub split_axis: SplitAxis,
     /// Whether mouse reporting was enabled for this run.
     pub mouse: bool,
     /// Days after which a visible plan is marked stale in red; `0` disables it.
@@ -549,6 +558,11 @@ impl App {
             list_area: Rect::new(0, 0, 0, 0),
             list_offset: 0,
             detail_area: Rect::new(0, 0, 0, 0),
+            detail_split_side: DEFAULT_SPLIT_SIDE,
+            detail_split_stacked: DEFAULT_SPLIT_STACKED,
+            dragging_split: false,
+            body_area: Rect::new(0, 0, 0, 0),
+            split_axis: SplitAxis::Side,
             mouse,
             stale_days,
             today,
@@ -1016,6 +1030,39 @@ impl App {
     }
 
     // ----------------------------------------------------------- mouse/detail
+
+    /// The detail share for `axis`.
+    #[allow(dead_code)] // wired up in the ui step
+    pub fn split_for(&self, axis: SplitAxis) -> u16 {
+        match axis {
+            SplitAxis::Side => self.detail_split_side,
+            SplitAxis::Stacked => self.detail_split_stacked,
+        }
+    }
+
+    /// Is this cell on the detail pane's divider border (left edge side-by-side,
+    /// top edge stacked)? False when the pane is not shown (zero-sized area).
+    #[allow(dead_code)] // wired up in the ui step
+    pub fn on_divider(&self, column: u16, row: u16) -> bool {
+        let area = self.detail_area;
+        if area.width == 0 || area.height == 0 || !contains(area, column, row) {
+            return false;
+        }
+        match self.split_axis {
+            SplitAxis::Side => column == area.x,
+            SplitAxis::Stacked => row == area.y,
+        }
+    }
+
+    /// Move the divider under the pointer, using the last drawn body and axis.
+    #[allow(dead_code)] // wired up in the ui step
+    pub fn drag_split_to(&mut self, column: u16, row: u16) {
+        let p = split_from_pointer(self.body_area, self.split_axis, column, row);
+        match self.split_axis {
+            SplitAxis::Side => self.detail_split_side = p,
+            SplitAxis::Stacked => self.detail_split_stacked = p,
+        }
+    }
 
     /// Scroll the detail pane by `delta` lines, clamped to its content.
     pub fn scroll_detail(&mut self, delta: isize) {
@@ -2344,5 +2391,28 @@ mod tests {
         let body = Rect::new(0, 1, 80, 60);
         let p = split_from_pointer(body, SplitAxis::Stacked, 5, 31);
         assert_eq!(split_body(body, SplitAxis::Stacked, p).unwrap().1.y, 31);
+    }
+
+    #[test]
+    fn dragging_the_divider_moves_only_the_active_axis() {
+        let mut app = app();
+        app.body_area = Rect::new(0, 1, 150, 40);
+        app.split_axis = SplitAxis::Side;
+        app.detail_area = split_body(
+            app.body_area,
+            SplitAxis::Side,
+            app.split_for(SplitAxis::Side),
+        )
+        .unwrap()
+        .1;
+        assert!(app.on_divider(app.detail_area.x, 5));
+        assert!(!app.on_divider(app.detail_area.x + 1, 5));
+
+        app.drag_split_to(100, 5);
+        let detail = split_body(app.body_area, SplitAxis::Side, app.detail_split_side)
+            .unwrap()
+            .1;
+        assert_eq!(detail.x, 100);
+        assert_eq!(app.detail_split_stacked, DEFAULT_SPLIT_STACKED);
     }
 }
