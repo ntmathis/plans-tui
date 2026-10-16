@@ -582,7 +582,6 @@ pub fn read_handoff(path: &Path) -> anyhow::Result<Option<String>> {
 #[derive(Debug, Clone)]
 pub struct Detail {
     pub handoff: Option<String>,
-    #[allow(dead_code)] // read by the detail pane in the next commit
     pub body: String,
 }
 

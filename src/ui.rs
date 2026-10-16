@@ -896,7 +896,7 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
         app.detail_lines = 0;
         app.reset_detail_scroll();
         frame.render_widget(
-            Paragraph::new("select a plan to see its handoff prompt")
+            Paragraph::new("select a plan to read it")
                 .block(block)
                 .style(Style::new().fg(Color::DarkGray))
                 .wrap(Wrap { trim: true }),
@@ -922,11 +922,12 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
                 .map(|canonical| canonical.display().to_string()),
         )
     };
-    let handoff = app.handoff_for(index);
+    let detail = app.detail_for(index);
+    let title_for_body = title.clone();
 
     let mut lines = vec![
         Line::from(Span::styled(
-            title,
+            title.clone(),
             Style::new().add_modifier(Modifier::BOLD),
         )),
         Line::from(vec![
@@ -971,31 +972,21 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
     }
     lines.push(Line::raw(""));
 
-    match handoff {
-        Some(prompt) => {
-            lines.push(Line::from(Span::styled(
-                "## Handoff Prompt",
-                Style::new()
-                    .add_modifier(Modifier::BOLD)
-                    .fg(Color::Indexed(114)),
-            )));
-            lines.extend(
-                prompt
-                    .lines()
-                    .take(40)
-                    .map(|line| Line::raw(line.to_string())),
-            );
-            if prompt.lines().count() > 40 {
+    match detail {
+        Some(detail) => {
+            if detail.handoff.is_none() {
                 lines.push(Line::from(Span::styled(
-                    "…",
-                    Style::new().fg(Color::DarkGray),
+                    "no ## Handoff Prompt — press Y to synthesize one",
+                    Style::new().fg(Color::Yellow),
                 )));
+                lines.push(Line::raw(""));
             }
+            lines.extend(body_lines(&title_for_body, &detail.body));
         }
         None => {
             lines.push(Line::from(Span::styled(
-                "no ## Handoff Prompt — press Y to synthesize one",
-                Style::new().fg(Color::Yellow),
+                "could not read plan file",
+                Style::new().fg(Color::DarkGray),
             )));
         }
     }
@@ -1009,6 +1000,35 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
             .scroll((scroll, 0)),
         area,
     );
+}
+
+/// The plan body as styled lines. Drops leading blanks and a first line that
+/// repeats the title (already shown bold above).
+fn body_lines(title: &str, body: &str) -> Vec<Line<'static>> {
+    let mut lines = body.lines().skip_while(|l| l.trim().is_empty()).peekable();
+    if lines
+        .peek()
+        .is_some_and(|l| l.trim_end() == format!("# {title}"))
+    {
+        lines.next();
+    }
+    lines
+        .map(|line| {
+            let trimmed = line.trim_start();
+            let style = if trimmed.to_lowercase().starts_with("## handoff prompt") {
+                Style::new()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::Indexed(114))
+            } else if line.starts_with('#') {
+                Style::new().add_modifier(Modifier::BOLD)
+            } else if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+                Style::new().fg(Color::DarkGray)
+            } else {
+                return Line::raw(line.to_string());
+            };
+            Line::from(Span::styled(line.to_string(), style))
+        })
+        .collect()
 }
 
 fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
@@ -1383,6 +1403,22 @@ mod tests {
         assert_eq!(truncate_left("abcdef", 4), "…def");
         assert_eq!(truncate_repo("apps/music-library", 15), "…/music-library");
         assert_eq!(truncate_repo("dotfiles", 15), "dotfiles");
+    }
+
+    #[test]
+    fn body_lines_keeps_every_line_and_drops_the_repeated_title() {
+        let mut body = String::from("\n# My Plan\n\n## Handoff Prompt\n");
+        for i in 0..60 {
+            body.push_str(&format!("line {i}\n"));
+        }
+        body.push_str("END-MARKER\n");
+        let lines = body_lines("My Plan", &body);
+        let text: Vec<String> = lines.iter().map(|l| l.to_string()).collect();
+        assert_eq!(text[0], "");
+        assert_eq!(text[1], "## Handoff Prompt");
+        assert_eq!(text.last().unwrap(), "END-MARKER");
+        assert!(!text.iter().any(|l| l == "# My Plan"));
+        assert_eq!(text.len(), 63);
     }
 
     #[test]
