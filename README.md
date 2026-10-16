@@ -4,7 +4,7 @@ A terminal dashboard for markdown plan files across all your repos, grouped by
 their frontmatter status — built for agent workflows where one model plans and
 another executes.
 
-![plans-tui demo](demo/demo.gif)
+![plans-tui demo](https://github.com/ntmathis/plans-tui/releases/download/demo-assets/demo.gif)
 
 ## Install
 

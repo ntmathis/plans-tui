@@ -1,4 +1,6 @@
 /target
-
-# Plan files stay local; they are not part of the public repo.
 /docs/plans/
+
+# Demo recordings and their fixture scripts stay local; the README GIF is a
+# release asset (see README).
+/demo/
