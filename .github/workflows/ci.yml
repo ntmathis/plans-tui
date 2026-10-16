@@ -1,0 +1,32 @@
+name: ci
+
+# Ported from the dotfiles repo when the crate moved out. No macOS runner: the
+# only macOS-specific code is the pbcopy call in clipboard.rs, which no test
+# exercises, and macOS minutes cost ten times as much.
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+      - name: Build
+        run: cargo build --release
