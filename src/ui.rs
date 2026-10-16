@@ -17,7 +17,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Paragraph, Wrap};
 use unicode_width::UnicodeWidthStr;
 
-use crate::app::{App, AppInit, DateFormat, GroupBy, RepoColumn, Row, contains, row_at};
+use crate::app::{
+    App, AppInit, DateFormat, GroupBy, RepoColumn, Row, contains, row_at, split_axis, split_body,
+};
 use crate::clipboard;
 use crate::git::GitStatus;
 use crate::plan::{Plan, Status};
@@ -122,7 +124,8 @@ fn event_loop(terminal: &mut DefaultTerminal, app: &mut App) -> anyhow::Result<(
 }
 
 /// Mouse reporting: wheel scrolls whatever is under the pointer, and a click
-/// selects a row (or folds a group header). Returns true when a repaint is due.
+/// selects a row (or folds a group header). Dragging the detail pane's border
+/// resizes it. Returns true when a repaint is due.
 fn handle_mouse(app: &mut App, mouse: MouseEvent) -> bool {
     match mouse.kind {
         MouseEventKind::ScrollDown => {
@@ -142,6 +145,10 @@ fn handle_mouse(app: &mut App, mouse: MouseEvent) -> bool {
             true
         }
         MouseEventKind::Down(MouseButton::Left) => {
+            if app.on_divider(mouse.column, mouse.row) {
+                app.dragging_split = true;
+                return true;
+            }
             let Some(index) = row_at(app.list_area, app.list_offset, mouse.column, mouse.row)
             else {
                 return false;
@@ -160,6 +167,14 @@ fn handle_mouse(app: &mut App, mouse: MouseEvent) -> bool {
             } else {
                 app.select_row(index);
             }
+            true
+        }
+        MouseEventKind::Drag(MouseButton::Left) if app.dragging_split => {
+            app.drag_split_to(mouse.column, mouse.row);
+            true
+        }
+        MouseEventKind::Up(MouseButton::Left) if app.dragging_split => {
+            app.dragging_split = false;
             true
         }
         _ => false,
@@ -522,16 +537,23 @@ fn draw(frame: &mut Frame, app: &mut App) {
     draw_header(frame, chunks[0], app);
 
     let body = chunks[1];
-    if app.detail_open && body.width >= 40 {
-        let columns = Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
-            .split(body);
-        draw_list(frame, columns[0], app);
-        draw_detail(frame, columns[1], app);
+    let axis = split_axis(body);
+    app.body_area = body;
+    app.split_axis = axis;
+    let panes = if app.detail_open {
+        split_body(body, axis, app.split_for(axis))
+    } else {
+        None
+    };
+    if let Some((list, detail)) = panes {
+        draw_list(frame, list, app);
+        draw_detail(frame, detail, app);
     } else {
         // No detail pane: make sure a stale area cannot swallow wheel events.
         app.detail_area = Rect::new(0, 0, 0, 0);
         app.detail_lines = 0;
         app.reset_detail_scroll();
+        app.dragging_split = false;
         draw_list(frame, body, app);
     }
 
@@ -864,7 +886,11 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
     let index = app.selected_index();
     let block = Block::bordered()
         .title(" detail ")
-        .border_style(Style::new().fg(Color::Indexed(240)));
+        .border_style(Style::new().fg(if app.dragging_split {
+            Color::Cyan
+        } else {
+            Color::Indexed(240)
+        }));
 
     let Some(index) = index else {
         app.detail_lines = 0;
@@ -1056,7 +1082,10 @@ fn draw_help(frame: &mut Frame, area: Rect, app: &App) {
         ("u", "undo the most recent status batch"),
         ("R", "rescan from disk (clears the selection)"),
         ("? / q", "close this help / quit"),
-        ("mouse", "wheel scrolls · click selects · header folds"),
+        (
+            "mouse",
+            "wheel scrolls · click selects · header folds · drag detail border resizes",
+        ),
         ("PgUp / PgDn", "page the list, or the detail pane when open"),
     ]
     .iter()

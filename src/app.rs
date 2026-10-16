@@ -478,7 +478,6 @@ pub struct App {
     pub detail_split_side: u16,
     pub detail_split_stacked: u16,
     /// A left-drag on the detail pane's divider is in progress.
-    #[allow(dead_code)] // wired up in the ui step
     pub dragging_split: bool,
     /// Body geometry and axis from the last draw, for mapping drags.
     pub body_area: Rect,
@@ -1032,7 +1031,6 @@ impl App {
     // ----------------------------------------------------------- mouse/detail
 
     /// The detail share for `axis`.
-    #[allow(dead_code)] // wired up in the ui step
     pub fn split_for(&self, axis: SplitAxis) -> u16 {
         match axis {
             SplitAxis::Side => self.detail_split_side,
@@ -1042,7 +1040,6 @@ impl App {
 
     /// Is this cell on the detail pane's divider border (left edge side-by-side,
     /// top edge stacked)? False when the pane is not shown (zero-sized area).
-    #[allow(dead_code)] // wired up in the ui step
     pub fn on_divider(&self, column: u16, row: u16) -> bool {
         let area = self.detail_area;
         if area.width == 0 || area.height == 0 || !contains(area, column, row) {
@@ -1055,7 +1052,6 @@ impl App {
     }
 
     /// Move the divider under the pointer, using the last drawn body and axis.
-    #[allow(dead_code)] // wired up in the ui step
     pub fn drag_split_to(&mut self, column: u16, row: u16) {
         let p = split_from_pointer(self.body_area, self.split_axis, column, row);
         match self.split_axis {
@@ -1589,26 +1585,18 @@ pub fn contains(area: Rect, column: u16, row: u16) -> bool {
 }
 
 /// Side-by-side needs at least this many body columns; narrower bodies stack.
-#[allow(dead_code)] // wired up in the ui step
 pub const SIDE_BY_SIDE_MIN_WIDTH: u16 = 100;
 /// Smallest list or detail extent a split may leave: columns side-by-side,
 /// rows stacked.
-#[allow(dead_code)] // wired up in the ui step
 pub const MIN_PANE_COLS: u16 = 30;
-#[allow(dead_code)] // wired up in the ui step
 pub const MIN_PANE_ROWS: u16 = 5;
 /// Detail share bounds and defaults, in per-mille of the body.
-#[allow(dead_code)] // wired up in the ui step
 pub const SPLIT_MIN: u16 = 100;
-#[allow(dead_code)] // wired up in the ui step
 pub const SPLIT_MAX: u16 = 900;
-#[allow(dead_code)] // wired up in the ui step
 pub const DEFAULT_SPLIT_SIDE: u16 = 450;
-#[allow(dead_code)] // wired up in the ui step
 pub const DEFAULT_SPLIT_STACKED: u16 = 500;
 
 /// Which way the body is divided between list and detail.
-#[allow(dead_code)] // wired up in the ui step
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplitAxis {
     /// Detail on the right.
@@ -1619,7 +1607,6 @@ pub enum SplitAxis {
 
 /// Cells are roughly twice as tall as wide, so a body narrower than twice its
 /// height is portrait on screen: stack the detail pane under the list.
-#[allow(dead_code)] // wired up in the ui step
 pub fn split_axis(body: Rect) -> SplitAxis {
     if body.width >= SIDE_BY_SIDE_MIN_WIDTH && body.width >= body.height.saturating_mul(2) {
         SplitAxis::Side
@@ -1630,7 +1617,6 @@ pub fn split_axis(body: Rect) -> SplitAxis {
 
 /// Divide `body` into (list, detail). `permille` is the detail pane's share
 /// along `axis`. `None` when the body is too small to fit both panes.
-#[allow(dead_code)] // wired up in the ui step
 pub fn split_body(body: Rect, axis: SplitAxis, permille: u16) -> Option<(Rect, Rect)> {
     let (len, min) = match axis {
         SplitAxis::Side => (body.width, MIN_PANE_COLS),
@@ -1668,7 +1654,6 @@ pub fn split_body(body: Rect, axis: SplitAxis, permille: u16) -> Option<(Rect, R
 }
 
 /// The detail share that puts the divider under the pointer while dragging.
-#[allow(dead_code)] // wired up in the ui step
 pub fn split_from_pointer(body: Rect, axis: SplitAxis, column: u16, row: u16) -> u16 {
     let (start, len, pos) = match axis {
         SplitAxis::Side => (body.x, body.width, column),
