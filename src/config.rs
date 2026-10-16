@@ -46,6 +46,10 @@ pub struct Config {
     pub stale_days: Option<i64>,
     /// Start the TUI with byte-identical duplicate copies hidden (`x` toggles).
     pub hide_duplicates: Option<bool>,
+    /// Hide plans that are worktree copies of a plan in the main checkout.
+    /// Default true: a worktree is a transient checkout the list already shows.
+    /// `--worktrees` shows them for one run.
+    pub hide_worktree_dupes: Option<bool>,
     /// Consult git for per-plan clean/modified/untracked status (`--git`).
     pub git: Option<bool>,
     /// Scan roots, `~` allowed. Defaults to `~/src`.

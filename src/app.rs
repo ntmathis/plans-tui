@@ -40,6 +40,9 @@ pub struct Filters {
     pub stale_days: Option<i64>,
     /// `--canonical-only`: drop the non-canonical copies of identical files.
     pub canonical_only: bool,
+    /// Drop plans that are worktree copies of a main-checkout plan. On by
+    /// default; `--worktrees` shows them again.
+    pub hide_worktree_copies: bool,
 }
 
 impl Filters {
@@ -79,6 +82,9 @@ impl Filters {
             return false;
         }
         if self.canonical_only && plan.duplicate_of.is_some() {
+            return false;
+        }
+        if self.hide_worktree_copies && plan.is_worktree_copy() {
             return false;
         }
         true
@@ -298,6 +304,9 @@ pub struct AppInit {
     pub today: NaiveDate,
     /// Start with duplicate copies hidden (the `x` toggle).
     pub hide_duplicates: bool,
+    /// Start with worktree copies of main-checkout plans hidden (`x` toggles
+    /// this together with `hide_duplicates`).
+    pub hide_worktree_copies: bool,
     /// Where the undo journal lives; `None` disables journaling (tests).
     pub journal_path: Option<PathBuf>,
     /// Git status, when git was consulted; `None` keeps every row unmarked.
@@ -326,6 +335,7 @@ impl AppInit {
             stale_days: 14,
             today: Local::now().date_naive(),
             hide_duplicates: false,
+            hide_worktree_copies: true,
             journal_path: crate::journal::default_path(),
             git: None,
             git_filters: GitFilters::default(),
@@ -385,6 +395,11 @@ impl AppInit {
 
     pub fn hide_duplicates(mut self, hide: bool) -> Self {
         self.hide_duplicates = hide;
+        self
+    }
+
+    pub fn hide_worktree_copies(mut self, hide: bool) -> Self {
+        self.hide_worktree_copies = hide;
         self
     }
 
@@ -492,6 +507,9 @@ pub struct App {
     pub today: NaiveDate,
     /// `x`: hide the non-canonical copies of identical plans.
     pub hide_duplicates: bool,
+    /// Hide worktree copies of main-checkout plans. Toggled with `x` alongside
+    /// `hide_duplicates`.
+    pub hide_worktree_copies: bool,
     /// Where status writes are journaled for undo; `None` skips journaling.
     pub journal_path: Option<PathBuf>,
     /// Git status, when git was consulted; `None` keeps every row unmarked.
@@ -519,6 +537,7 @@ impl App {
             stale_days,
             today,
             hide_duplicates,
+            hide_worktree_copies,
             journal_path,
             git,
             git_filters,
@@ -566,6 +585,7 @@ impl App {
             stale_days,
             today,
             hide_duplicates,
+            hide_worktree_copies,
             journal_path,
             git,
             git_filters,
@@ -661,6 +681,9 @@ impl App {
             return false;
         }
         if self.hide_duplicates && plan.duplicate_of.is_some() {
+            return false;
+        }
+        if self.hide_worktree_copies && plan.is_worktree_copy() {
             return false;
         }
         if self.git_filters.active()
@@ -1141,11 +1164,13 @@ impl App {
         self.rebuild();
     }
 
-    /// `x`: hide or show the non-canonical copies of identical plans.
+    /// `x`: hide or show duplicate copies, including worktree copies.
     pub fn toggle_duplicates(&mut self) {
-        self.hide_duplicates = !self.hide_duplicates;
+        let hiding = !(self.hide_duplicates || self.hide_worktree_copies);
+        self.hide_duplicates = hiding;
+        self.hide_worktree_copies = hiding;
         self.rebuild();
-        self.toast(if self.hide_duplicates {
+        self.toast(if hiding {
             "hiding duplicate copies"
         } else {
             "showing duplicate copies"
@@ -1699,6 +1724,7 @@ mod tests {
             has_frontmatter: true,
             content_hash: String::new(),
             duplicate_of: None,
+            in_worktree: false,
         }
     }
 
@@ -2062,6 +2088,23 @@ mod tests {
         app.status_filter = [Status::Wip].into_iter().collect();
         app.rebuild();
         assert_eq!(app.hidden_selected_count(), 1);
+    }
+
+    #[test]
+    fn worktree_copies_are_hidden_by_default_and_x_reveals_them() {
+        let mut app = app();
+        let main = app.plans[0].path.clone();
+        app.plans[1].in_worktree = true;
+        app.plans[1].duplicate_of = Some(main);
+        app.rebuild();
+        assert!(
+            !app.is_visible(&app.plans[1]),
+            "worktree copy hidden by default"
+        );
+        app.toggle_duplicates();
+        assert!(app.is_visible(&app.plans[1]), "x reveals worktree copies");
+        app.toggle_duplicates();
+        assert!(!app.is_visible(&app.plans[1]), "x hides them again");
     }
 
     #[test]

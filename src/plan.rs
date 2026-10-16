@@ -164,9 +164,15 @@ pub struct Plan {
     /// near-duplicates deliberately do not.
     pub content_hash: String,
     /// For a non-canonical copy of an identical file, the canonical copy's
-    /// absolute path. `None` for the canonical copy and for files with no
+    /// absolute path. Also set for a plan that lives in a worktree whose
+    /// main checkout holds the same repo-relative path, even when the two
+    /// files differ. `None` for the canonical copy and for files with no
     /// twin. Assigned by [`crate::scan::find_plans`], not by parsing.
     pub duplicate_of: Option<PathBuf>,
+    /// The plan lives in a linked git worktree checkout (its repo's `.git`
+    /// points at the main checkout's `worktrees/`), not the main checkout
+    /// itself. Set by the scanner, not by parsing.
+    pub in_worktree: bool,
 }
 
 impl Plan {
@@ -178,6 +184,13 @@ impl Plan {
     /// The canonical copy of an identical group (or a file with no twin).
     pub fn is_canonical(&self) -> bool {
         self.duplicate_of.is_none()
+    }
+
+    /// A worktree plan whose main checkout has the same repo-relative file.
+    /// The default filters drop these: a worktree is a transient checkout of
+    /// a repo the list already shows.
+    pub fn is_worktree_copy(&self) -> bool {
+        self.in_worktree && self.duplicate_of.is_some()
     }
 
     /// Days since `date_updated`, or `None` when the plan has no date at all.
@@ -272,6 +285,7 @@ impl Plan {
             has_frontmatter: header.has_frontmatter,
             content_hash,
             duplicate_of: None,
+            in_worktree: false,
         })
     }
 }

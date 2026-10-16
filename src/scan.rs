@@ -156,6 +156,7 @@ pub fn find_plans_with_reasons(roots: &[PathBuf]) -> ScanResult {
     }
 
     mark_duplicates(&mut plans);
+    mark_worktree_copies(&mut plans);
 
     plans.sort_by(|a, b| {
         a.status
@@ -251,7 +252,11 @@ fn build_plan(path: &Path, root: &Path) -> Option<Plan> {
         .unwrap_or(path)
         .to_string_lossy()
         .into_owned();
-    Plan::from_path(path, &repo_root, &repo_name, &rel_path).ok()
+    let mut plan = Plan::from_path(path, &repo_root, &repo_name, &rel_path).ok()?;
+    // A linked worktree repeats the main checkout's plan tree, so the scanner
+    // needs to know to collapse the copy (see `mark_worktree_copies`).
+    plan.in_worktree = worktree_main_root(&repo_root).is_some();
+    Some(plan)
 }
 
 /// Directory names that mean "a copy of somebody else's checkout": a plan
@@ -330,6 +335,75 @@ fn is_vendored(path: &Path) -> bool {
     parts
         .windows(2)
         .any(|pair| pair[0] == VENDORED_PAIR.0 && pair[1] == VENDORED_PAIR.1)
+}
+
+/// The main checkout root when `repo_root` is a linked git worktree, else
+/// `None`.
+///
+/// A worktree's `.git` is a file reading
+/// `gitdir: <main>/.git/worktrees/<name>`; a submodule also uses a `.git`
+/// file but points at `<main>/.git/modules/<name>`, so requiring the
+/// `worktrees` component keeps submodules out.
+fn worktree_main_root(repo_root: &Path) -> Option<PathBuf> {
+    let git = repo_root.join(".git");
+    if !std::fs::metadata(&git).ok()?.is_file() {
+        return None;
+    }
+    let text = std::fs::read_to_string(&git).ok()?;
+    let raw = text.trim().strip_prefix("gitdir:")?.trim();
+    let target = PathBuf::from(raw);
+    let target = if target.is_absolute() {
+        target
+    } else {
+        repo_root.join(target)
+    };
+    let worktrees_dir = target.parent()?;
+    if worktrees_dir.file_name().and_then(|n| n.to_str()) != Some("worktrees") {
+        return None;
+    }
+    let git_dir = worktrees_dir.parent()?;
+    if git_dir.file_name().and_then(|n| n.to_str()) != Some(".git") {
+        return None;
+    }
+    git_dir.parent().map(Path::to_path_buf)
+}
+
+/// Mark a worktree plan as a copy of the plan at the same repo-relative path
+/// in its main checkout, when that plan is also in the scan. Content is not
+/// compared: a worktree copy is often edited (a status bump, an in-flight
+/// task), and it is still the same plan. Worktree-only plans keep no twin and
+/// stay visible.
+///
+/// Runs after [`mark_duplicates`], which already collapses byte-identical
+/// copies; those keep the twin that pass picked.
+pub fn mark_worktree_copies(plans: &mut [Plan]) {
+    let mut main: HashMap<PathBuf, usize> = HashMap::new();
+    for (index, plan) in plans.iter().enumerate() {
+        if !plan.in_worktree {
+            main.entry(plan.path.clone()).or_insert(index);
+        }
+    }
+
+    let mut roots: HashMap<PathBuf, Option<PathBuf>> = HashMap::new();
+    let mut twins: Vec<(usize, PathBuf)> = Vec::new();
+    for (index, plan) in plans.iter().enumerate() {
+        if !plan.in_worktree || plan.duplicate_of.is_some() {
+            continue;
+        }
+        let main_root = roots
+            .entry(plan.repo_root.clone())
+            .or_insert_with(|| worktree_main_root(&plan.repo_root));
+        let Some(main_root) = main_root.as_ref() else {
+            continue;
+        };
+        let twin = main_root.join(&plan.rel_path);
+        if let Some(&canonical) = main.get(&twin) {
+            twins.push((index, plans[canonical].path.clone()));
+        }
+    }
+    for (index, canonical) in twins {
+        plans[index].duplicate_of = Some(canonical);
+    }
 }
 
 /// Prune the walk: heavy/build dirs and unknown hidden dirs. Every non-README
@@ -564,6 +638,7 @@ mod tests {
             has_frontmatter: true,
             content_hash: hash.to_string(),
             duplicate_of: None,
+            in_worktree: false,
         }
     }
 
@@ -633,6 +708,86 @@ mod tests {
             assert!(is_vendored(Path::new(path)), "{path}");
         }
         assert!(!is_vendored(Path::new("/src/x/docs/plans/a.md")));
+    }
+
+    #[test]
+    fn worktree_main_root_reads_a_linked_worktree_gitdir() {
+        let root = std::env::temp_dir().join(format!(
+            "plans-worktree-root-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let main = root.join("repo");
+        std::fs::create_dir_all(main.join(".git/worktrees/wt")).expect("main git dir");
+
+        // A linked worktree: `.git` is a file pointing under `.git/worktrees`.
+        let wt = root.join("elsewhere/wt");
+        std::fs::create_dir_all(&wt).expect("worktree dir");
+        std::fs::write(
+            wt.join(".git"),
+            format!("gitdir: {}/.git/worktrees/wt\n", main.display()),
+        )
+        .expect("worktree .git");
+        assert_eq!(worktree_main_root(&wt), Some(main.clone()));
+
+        // A submodule uses a `.git` file too, but pointing at `.git/modules`.
+        let sub = root.join("submodule");
+        std::fs::create_dir_all(&sub).expect("submodule dir");
+        std::fs::write(
+            sub.join(".git"),
+            format!("gitdir: {}/.git/modules/sub\n", main.display()),
+        )
+        .expect("submodule .git");
+        assert_eq!(worktree_main_root(&sub), None);
+
+        // A normal clone has a `.git` directory, not a file.
+        assert_eq!(worktree_main_root(&main), None);
+        std::fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn worktree_copies_collapse_to_the_main_checkout_twin() {
+        let root = std::env::temp_dir().join(format!(
+            "plans-worktree-copies-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let main = root.join("repo");
+        let wt = root.join("wt");
+        std::fs::create_dir_all(main.join(".git/worktrees/wt")).expect("main git dir");
+        std::fs::create_dir_all(&wt).expect("worktree dir");
+        std::fs::write(
+            wt.join(".git"),
+            format!("gitdir: {}/.git/worktrees/wt\n", main.display()),
+        )
+        .expect("worktree .git");
+
+        let main_plan = main.join("docs/plans/a.md");
+        let wt_plan = wt.join("docs/plans/a.md");
+        let wt_only = wt.join("docs/plans/only-here.md");
+        let mut plans = vec![
+            fake(
+                &main_plan.to_string_lossy(),
+                &main.to_string_lossy(),
+                "main",
+            ),
+            fake(&wt_plan.to_string_lossy(), &wt.to_string_lossy(), "wt"),
+            fake(&wt_only.to_string_lossy(), &wt.to_string_lossy(), "wt-only"),
+        ];
+        plans[1].in_worktree = true;
+        plans[2].in_worktree = true;
+        plans[2].rel_path = "docs/plans/only-here.md".to_string();
+
+        mark_worktree_copies(&mut plans);
+
+        // Different content, same repo-relative path: still the same plan.
+        assert_eq!(plans[1].duplicate_of.as_deref(), Some(main_plan.as_path()));
+        assert!(plans[1].is_worktree_copy());
+        // No main-checkout twin: worktree-only work stays visible.
+        assert!(plans[2].duplicate_of.is_none());
+        assert!(!plans[2].is_worktree_copy());
+        assert!(plans[0].is_canonical());
+        std::fs::remove_dir_all(&root).expect("cleanup");
     }
 
     #[test]

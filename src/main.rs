@@ -55,6 +55,7 @@ EXAMPLES:
   plans --stale 30 --json | jq '.[].slug'  widen the cutoff for one run
   plans --dupes                            byte-identical copies, canonical first
   plans --canonical-only --count           how many remain after dedupe
+  plans --worktrees --status all           include copies from git worktrees
   plans --git --dirty --paths | xargs git add    stage the dirty plan files
   plans --git --untracked --count          how many plan files git does not know
   plans --date-format short                override the config for one run
@@ -74,6 +75,7 @@ CONFIG:
     strip_slug_date = true | false          drop the YYYY-MM-DD- from displayed filenames
     stale_days  = 14                        days before a TODO/WIP/UAT is stale; 0 hides the marker
     hide_duplicates = true | false          start the TUI with duplicate copies hidden (x toggles)
+    hide_worktree_dupes = true | false      hide worktree copies of a main-checkout plan (default true)
     git         = true | false              consult git for per-plan clean/modified/untracked
     roots       = [\"~/src\"]                 scan roots, ~ allowed
     exclude     = [\"docs/adr\"]              skip paths containing this substring
@@ -87,7 +89,9 @@ JSON FIELDS:
   TODO-/WIP-/UAT-/DONE-/DROPPED- filename prefix, not frontmatter),
   date_created, date_updated (YYYY-MM-DD), age_days (days since date_updated,
   null when there is no date), content_hash (BLAKE3 hex), duplicate_of (the
-  canonical copy's path, null for the canonical copy), git_status
+  canonical copy's path, null for the canonical copy; a worktree copy points
+  at its main-checkout twin even when the bytes differ), worktree (true when
+  the file lives in a linked git worktree checkout), git_status
   (clean/modified/untracked/unknown, null when git was not consulted), tags,
   owner, has_handoff, has_frontmatter
 
@@ -97,7 +101,9 @@ them you get the TUI.
 
 STATUS DEFAULTS: machine modes dump everything unless you pass --status or the
 config sets one; --list shows live work (TODO/WIP/UAT); the TUI shows live work
-plus UNKNOWN, which is most of the legacy corpus.";
+plus UNKNOWN, which is most of the legacy corpus. All modes drop worktree
+copies of a main-checkout plan unless --worktrees is passed or the config sets
+hide_worktree_dupes = false.";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -202,6 +208,16 @@ struct Cli {
     /// Drop the non-canonical copies of byte-identical plans.
     #[arg(long)]
     canonical_only: bool,
+
+    /// Include plans that are worktree copies of a plan in the main checkout.
+    /// Hidden by default; the config's `hide_worktree_dupes` can flip that.
+    #[arg(long = "worktrees", conflicts_with = "no_worktrees")]
+    show_worktrees: bool,
+
+    /// Hide worktree copies even when the config has `hide_worktree_dupes =
+    /// false`.
+    #[arg(long)]
+    no_worktrees: bool,
 
     /// Consult git and mark each plan clean, modified or untracked. Off by
     /// default because it spawns one process per repo.
@@ -474,6 +490,7 @@ fn main() -> Result<()> {
             .config_path(loaded.path.clone())
             .stale_days(resolve_stale_marker(&cli, &config))
             .hide_duplicates(cli.canonical_only || config.hide_duplicates.unwrap_or(false))
+            .hide_worktree_copies(resolve_hide_worktree_dupes(&cli, &config))
             .git(git_index)
             .git_filters(git_filters)
             .mouse(resolve_mouse(&cli, &config)),
@@ -527,6 +544,7 @@ fn filters_for(cli: &Cli, config: &Config) -> Filters {
         has_handoff: cli.has_handoff,
         stale_days,
         canonical_only: cli.canonical_only,
+        hide_worktree_copies: resolve_hide_worktree_dupes(cli, config),
     }
 }
 
@@ -595,6 +613,18 @@ fn resolve_mouse(cli: &Cli, config: &Config) -> bool {
     }
 }
 
+/// Worktree copies are hidden unless `--worktrees` or the config says show.
+/// `--no-worktrees` beats the config.
+fn resolve_hide_worktree_dupes(cli: &Cli, config: &Config) -> bool {
+    if cli.show_worktrees {
+        false
+    } else if cli.no_worktrees {
+        true
+    } else {
+        config.hide_worktree_dupes.unwrap_or(true)
+    }
+}
+
 /// `None` means "let the width decide".
 fn resolve_detail(cli: &Cli, config: &Config) -> Option<bool> {
     if cli.detail {
@@ -631,8 +661,12 @@ struct PlanJson<'a> {
     /// BLAKE3 of the file bytes, hex. Identical files share it.
     content_hash: &'a str,
     /// The canonical copy's absolute path, or `null` when this *is* the
-    /// canonical copy (or the file has no twin).
+    /// canonical copy (or the file has no twin). A worktree copy points at its
+    /// main-checkout twin even when the bytes differ.
     duplicate_of: Option<String>,
+    /// `true` when the file lives in a linked git worktree checkout rather
+    /// than the main checkout.
+    worktree: bool,
     /// `clean`, `modified`, `untracked` or `unknown`, or `null` when git was
     /// never consulted.
     git_status: Option<&'static str>,
@@ -665,6 +699,7 @@ fn json_rows<'a>(plans: &[&'a Plan], git: Option<&git::GitIndex>) -> Vec<PlanJso
                 .duplicate_of
                 .as_ref()
                 .map(|path| path.to_string_lossy().into_owned()),
+            worktree: plan.in_worktree,
             git_status: git.map(|index| index.status(plan).label()),
             tags: &plan.tags,
             owner: plan.owner.as_deref(),

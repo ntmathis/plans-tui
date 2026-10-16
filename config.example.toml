@@ -33,6 +33,13 @@ stale_days = 14
 # at runtime. Near-duplicates are out of scope: only exact file matches count.
 hide_duplicates = false
 
+# Hide plans that are copies from a linked git worktree of a repo whose main
+# checkout also has the same repo-relative plan. A worktree is a transient
+# checkout the list already shows, so these are dropped by default and the
+# worktree-only plans (no main-checkout twin) stay. `--worktrees` shows them
+# for one run, and the TUI's `x` toggle flips this alongside hide_duplicates.
+hide_worktree_dupes = true
+
 # Consult git for per-plan clean/modified/untracked status. Off by default
 # because it spawns one `git status` per repo (in parallel, bounded). `g`
 # toggles it in the TUI, `--git` for one run.

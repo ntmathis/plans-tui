@@ -81,7 +81,7 @@ Keys in the TUI:
 | `s` | cycle grouping: status → repo → week → none |
 | `y` / `Y` | copy the handoff prompt / a synthesized one |
 | `g` | toggle git status markers |
-| `x` | hide duplicate copies |
+| `x` | hide duplicate copies (including worktree copies) |
 | `?` / `q` | help / quit |
 
 ## Config
