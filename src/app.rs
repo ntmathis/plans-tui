@@ -457,7 +457,7 @@ pub struct App {
 
     pub detail_open: bool,
     /// Handoff prompts, loaded lazily and cached per path.
-    pub detail_cache: HashMap<PathBuf, Option<String>>,
+    pub detail_cache: HashMap<PathBuf, Option<crate::plan::Detail>>,
     /// Rows the detail pane is scrolled down by (mouse wheel / page keys).
     pub detail_scroll: u16,
     /// Logical lines in the current detail content, for clamping the scroll.
@@ -1195,15 +1195,20 @@ impl App {
         }
     }
 
-    /// The handoff prompt for the selection, read once and cached.
-    pub fn handoff_for(&mut self, index: usize) -> Option<String> {
+    /// The full plan body and handoff for a plan, read once and cached.
+    pub fn detail_for(&mut self, index: usize) -> Option<crate::plan::Detail> {
         let plan = self.plans.get(index)?;
         if let Some(cached) = self.detail_cache.get(&plan.path) {
             return cached.clone();
         }
-        let prompt = plan.handoff_prompt();
-        self.detail_cache.insert(plan.path.clone(), prompt.clone());
-        prompt
+        let detail = plan.detail();
+        self.detail_cache.insert(plan.path.clone(), detail.clone());
+        detail
+    }
+
+    /// The handoff prompt for the selection, read once and cached.
+    pub fn handoff_for(&mut self, index: usize) -> Option<String> {
+        self.detail_for(index).and_then(|d| d.handoff)
     }
 
     pub fn invalidate(&mut self, path: &Path) {

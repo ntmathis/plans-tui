@@ -205,6 +205,11 @@ impl Plan {
         read_handoff(&self.path).ok().flatten()
     }
 
+    /// Read the plan once for the detail pane: body plus handoff. Lazy.
+    pub fn detail(&self) -> Option<Detail> {
+        read_detail(&self.path).ok()
+    }
+
     /// A handoff prompt built from the plan's location, for plans that never
     /// wrote one. Always available.
     pub fn synthesized_handoff(&self) -> String {
@@ -342,7 +347,7 @@ pub fn parse_header(prefix: &str, stem: &str, mtime: Option<NaiveDate>) -> Parse
 /// Split `---\n…\n---\n` off the front of a document.
 ///
 /// Returns `(frontmatter, body)`. The fence lines are not included in either.
-fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
+pub(crate) fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
     let Some(after_open) = content
         .strip_prefix("---\n")
         .or_else(|| content.strip_prefix("---\r\n"))
@@ -570,6 +575,27 @@ pub fn read_handoff(path: &Path) -> anyhow::Result<Option<String>> {
     let bytes = std::fs::read(path)?;
     let content = String::from_utf8_lossy(&bytes);
     Ok(extract_handoff(&content))
+}
+
+/// A plan as the detail pane shows it: the body without frontmatter, plus the
+/// extracted handoff block (if any).
+#[derive(Debug, Clone)]
+pub struct Detail {
+    pub handoff: Option<String>,
+    #[allow(dead_code)] // read by the detail pane in the next commit
+    pub body: String,
+}
+
+/// Read a plan once from disk and return its body and handoff block.
+pub fn read_detail(path: &Path) -> anyhow::Result<Detail> {
+    let bytes = std::fs::read(path)?;
+    let text = String::from_utf8_lossy(&bytes);
+    let content = text.strip_prefix('\u{feff}').unwrap_or(&text);
+    let body = split_frontmatter(content).1.to_string();
+    Ok(Detail {
+        handoff: extract_handoff(content),
+        body,
+    })
 }
 
 // ------------------------------------------------------------- status edits
@@ -823,6 +849,23 @@ mod tests {
 
         let unterminated = "## handoff prompt\n\n```\nno closer\n";
         assert_eq!(extract_handoff(unterminated).unwrap(), "no closer");
+    }
+
+    #[test]
+    fn read_detail_returns_body_without_fence_and_handoff() {
+        let dir = std::env::temp_dir().join(format!("plans-tui-detail-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("p.md");
+        std::fs::write(
+            &path,
+            "---\nstatus: #TODO\n---\n\n# Title\n\n## Handoff Prompt\n\n```\nRepo: /x\n```\n\ntrailing prose\n",
+        )
+        .unwrap();
+        let d = read_detail(&path).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+        assert!(!d.body.contains("---"));
+        assert!(d.body.contains("trailing prose"));
+        assert_eq!(d.handoff.as_deref(), Some("Repo: /x"));
     }
 
     #[test]
