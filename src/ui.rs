@@ -905,7 +905,19 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
         return;
     };
 
-    let (title, repo, path, status, status_raw, owner, created, updated, tags, duplicate_of) = {
+    let (
+        title,
+        repo,
+        path,
+        status,
+        status_raw,
+        status_inferred,
+        owner,
+        created,
+        updated,
+        tags,
+        duplicate_of,
+    ) = {
         let plan = &app.plans[index];
         (
             plan.title.clone(),
@@ -913,6 +925,7 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
             plan.path.display().to_string(),
             plan.status.label().to_string(),
             plan.status_raw.clone(),
+            plan.status_inferred,
             plan.owner.clone(),
             plan.date_created.map(|d| d.format("%Y-%m-%d").to_string()),
             plan.date_updated.map(|d| d.format("%Y-%m-%d").to_string()),
@@ -938,6 +951,11 @@ fn draw_detail(frame: &mut Frame, area: Rect, app: &mut App) {
                 .filter(|raw| !raw.is_empty())
                 .map(|raw| Span::styled(format!("  {raw}"), Style::new().fg(Color::DarkGray)))
                 .unwrap_or_else(|| Span::raw("")),
+            if status_inferred {
+                Span::styled("  (inferred)", Style::new().fg(Color::DarkGray))
+            } else {
+                Span::raw("")
+            },
         ]),
         Line::from(Span::styled(path, Style::new().fg(Color::DarkGray))),
     ];

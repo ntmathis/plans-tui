@@ -83,6 +83,8 @@ JSON FIELDS:
   status (TODO/WIP/UAT/DONE/DROPPED/UNKNOWN/other label), status_key
   (todo/wip/uat/done/dropped/unknown/other, stable for matching), status_raw
   (exactly as written in the frontmatter, e.g. \"#UAT\" or \"ready\"),
+  status_inferred (true when the status came from a body **Status:** line or a
+  TODO-/WIP-/UAT-/DONE-/DROPPED- filename prefix, not frontmatter),
   date_created, date_updated (YYYY-MM-DD), age_days (days since date_updated,
   null when there is no date), content_hash (BLAKE3 hex), duplicate_of (the
   canonical copy's path, null for the canonical copy), git_status
@@ -619,6 +621,9 @@ struct PlanJson<'a> {
     status_key: &'static str,
     /// Exactly what the frontmatter said, e.g. `#UAT`.
     status_raw: Option<&'a str>,
+    /// `true` when the status came from a body `**Status:**` line or a
+    /// filename prefix instead of frontmatter.
+    status_inferred: bool,
     date_created: Option<String>,
     date_updated: Option<String>,
     /// Days since `date_updated`, `null` when the plan has no date at all.
@@ -651,6 +656,7 @@ fn json_rows<'a>(plans: &[&'a Plan], git: Option<&git::GitIndex>) -> Vec<PlanJso
             status: plan.status.label(),
             status_key: plan.status.key(),
             status_raw: plan.status_raw.as_deref(),
+            status_inferred: plan.status_inferred,
             date_created: plan.date_created.map(|d| d.format("%Y-%m-%d").to_string()),
             date_updated: plan.date_updated.map(|d| d.format("%Y-%m-%d").to_string()),
             age_days: plan.age_days(today),

@@ -1690,6 +1690,7 @@ mod tests {
             title: title.to_string(),
             status,
             status_raw: None,
+            status_inferred: false,
             date_created: Some(date),
             date_updated: Some(date),
             tags: Vec::new(),

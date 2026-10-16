@@ -150,6 +150,9 @@ pub struct Plan {
     pub status: Status,
     /// The raw `status:` value as written, quotes and `#` intact.
     pub status_raw: Option<String>,
+    /// The status came from a body `**Status:**` line or a filename prefix,
+    /// not from frontmatter.
+    pub status_inferred: bool,
     pub date_created: Option<NaiveDate>,
     pub date_updated: Option<NaiveDate>,
     pub tags: Vec<String>,
@@ -260,6 +263,7 @@ impl Plan {
             title: header.title,
             status: header.status,
             status_raw: header.status_raw,
+            status_inferred: header.status_inferred,
             date_created: header.date_created,
             date_updated: header.date_updated,
             tags: header.tags,
@@ -278,6 +282,7 @@ pub struct ParsedHeader {
     pub title: String,
     pub status: Status,
     pub status_raw: Option<String>,
+    pub status_inferred: bool,
     pub date_created: Option<NaiveDate>,
     pub date_updated: Option<NaiveDate>,
     pub tags: Vec<String>,
@@ -319,10 +324,21 @@ pub fn parse_header(prefix: &str, stem: &str, mtime: Option<NaiveDate>) -> Parse
         }
     }
 
-    let status = status_raw
+    let mut status = status_raw
         .as_deref()
         .map(Status::parse)
         .unwrap_or(Status::Unknown);
+    let mut status_inferred = false;
+    if status_raw.is_none() {
+        if let Some(raw) = scan_body_status(body) {
+            status = Status::parse(first_status_word(&raw));
+            status_raw = Some(raw);
+            status_inferred = true;
+        } else if let Some(from_stem) = status_from_stem(stem) {
+            status = from_stem;
+            status_inferred = true;
+        }
+    }
 
     let title = body
         .lines()
@@ -335,12 +351,56 @@ pub fn parse_header(prefix: &str, stem: &str, mtime: Option<NaiveDate>) -> Parse
         title,
         status,
         status_raw,
+        status_inferred,
         date_created: fm_created.or_else(|| date_from_filename(stem)).or(mtime),
         date_updated: fm_updated.or(mtime),
         tags,
         owner,
         has_handoff: has_handoff_section(content),
         has_frontmatter: block.is_some(),
+    }
+}
+
+/// The value of a `**Status:**` line in the first 15 lines of a body, cut at
+/// the first `|`. Plain `status:` is ignored: it matches code snippets.
+fn scan_body_status(body: &str) -> Option<String> {
+    body.lines().take(15).find_map(|line| {
+        let line = line.trim();
+        let line = line.strip_prefix("> ").unwrap_or(line);
+        let rest = line.strip_prefix("**")?;
+        let label = rest.get(..6)?;
+        if !label.eq_ignore_ascii_case("status") {
+            return None;
+        }
+        let rest = rest.get(6..)?;
+        let value = rest
+            .strip_prefix(":**")
+            .or_else(|| rest.strip_prefix("**:"))?;
+        let value = value.split('|').next().unwrap_or("").trim();
+        (!value.is_empty()).then(|| value.to_string())
+    })
+}
+
+/// The first word of an inferred status line: `Approved in conversation; …`
+/// becomes `Approved`.
+fn first_status_word(raw: &str) -> &str {
+    let raw = raw.trim().trim_start_matches('#');
+    let end = raw
+        .find(|c: char| c.is_whitespace() || "(,;.—".contains(c))
+        .unwrap_or(raw.len());
+    &raw[..end]
+}
+
+/// A legacy `TODO-`/`WIP-`/`UAT-`/`DONE-`/`DROPPED-` filename prefix.
+fn status_from_stem(stem: &str) -> Option<Status> {
+    let (prefix, _) = stem.split_once('-')?;
+    match prefix.to_ascii_uppercase().as_str() {
+        "TODO" => Some(Status::Todo),
+        "WIP" => Some(Status::Wip),
+        "UAT" => Some(Status::Uat),
+        "DONE" => Some(Status::Done),
+        "DROPPED" => Some(Status::Dropped),
+        _ => None,
     }
 }
 
@@ -865,6 +925,50 @@ mod tests {
         assert!(!d.body.contains("---"));
         assert!(d.body.contains("trailing prose"));
         assert_eq!(d.handoff.as_deref(), Some("Repo: /x"));
+    }
+
+    #[test]
+    fn body_status_line_is_inferred() {
+        let h = parse_header("# T\n\n**Status:** DONE | **Owner:** x\n", "t", None);
+        assert_eq!(h.status, Status::Done);
+        assert!(h.status_inferred);
+    }
+
+    #[test]
+    fn quoted_body_status_keeps_full_text_and_other_status() {
+        let h = parse_header(
+            "# T\n\n> **Status:** Approved in conversation; awaiting review\n",
+            "t",
+            None,
+        );
+        assert_eq!(h.status, Status::Other("APPROVED".to_string()));
+        assert_eq!(
+            h.status_raw.as_deref(),
+            Some("Approved in conversation; awaiting review")
+        );
+        assert!(h.status_inferred);
+    }
+
+    #[test]
+    fn code_block_status_is_not_a_status() {
+        let h = parse_header("# T\n\n```\nstatus: text(\"status\")\n```\n", "t", None);
+        assert_eq!(h.status, Status::Unknown);
+        assert!(!h.status_inferred);
+    }
+
+    #[test]
+    fn filename_prefix_infers_status() {
+        let h = parse_header("# T\n", "DONE-2026-09-10-foo", None);
+        assert_eq!(h.status, Status::Done);
+        assert!(h.status_raw.is_none());
+        assert!(h.status_inferred);
+    }
+
+    #[test]
+    fn frontmatter_status_beats_body_status() {
+        let h = parse_header("---\nstatus: #WIP\n---\n\n**Status:** DONE\n", "t", None);
+        assert_eq!(h.status, Status::Wip);
+        assert!(!h.status_inferred);
     }
 
     #[test]

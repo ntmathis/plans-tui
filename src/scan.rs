@@ -555,6 +555,7 @@ mod tests {
             title: "A".to_string(),
             status: Status::Wip,
             status_raw: None,
+            status_inferred: false,
             date_created: None,
             date_updated: None,
             tags: Vec::new(),
