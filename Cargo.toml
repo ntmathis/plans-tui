@@ -1,0 +1,36 @@
+[package]
+name = "plans-tui"
+version = "0.1.0"
+edition = "2024"
+description = "Global plan dashboard across every repo in ~/src"
+license = "MIT"
+repository = "https://github.com/ntmathis/plans-tui"
+readme = "README.md"
+keywords = ["tui", "plans", "markdown", "ai-agents", "cli"]
+categories = ["command-line-utilities"]
+# Edition 2024 needs Rust 1.85; `is_multiple_of` on integers needs 1.87, so
+# that is the real floor this crate is tested against.
+rust-version = "1.87"
+
+[[bin]]
+name = "plans"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = "0.28"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+ignore = "0.4"
+rayon = "1"
+anyhow = "1"
+nucleo-matcher = "0.3"
+chrono = "0.4"
+dirs = "5"
+# Already in ratatui's tree; used so column widths count display cells, not
+# chars (titles contain em dashes and emoji).
+unicode-width = "0.2"
+blake3 = "1.8.7"

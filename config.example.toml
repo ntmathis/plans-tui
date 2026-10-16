@@ -1,0 +1,45 @@
+# plans-tui — example config.
+#
+# Read from ~/.config/plans/config.toml (or $PLANS_CONFIG / --config PATH).
+# Every option here is a *default*: a CLI flag always wins, e.g.
+#   plans --date-format iso     for one run with full dates
+#   plans --no-mouse            to keep the terminal's own drag-to-select
+# `plans --help` lists the same keys with their built-in defaults.
+
+# "short" renders 9/14; "iso" renders 2026-09-14. JSON output is always ISO.
+date_format = "short"
+
+# status | repo | week | none
+group_by = "status"
+
+# updated | created | title | repo
+sort = "updated"
+reverse = false
+
+# The repo column is hidden when the list is already grouped by repo:
+# auto | always | never
+repo_column = "auto"
+
+# Drop the `YYYY-MM-DD-` prefix from displayed filenames. The date is already
+# its own column, so the prefix is redundant width. Display-only: `--handoff`,
+# `--copy` and `--json`'s `slug` keep the full filename.
+strip_slug_date = true
+
+# Days after which a TODO/WIP/UAT plan is marked stale in red in the TUI and
+# becomes `--stale`'s default cutoff. 0 disables the marker.
+stale_days = 14
+
+# Start the TUI with byte-identical duplicate copies hidden. `x` toggles this
+# at runtime. Near-duplicates are out of scope: only exact file matches count.
+hide_duplicates = false
+
+# Consult git for per-plan clean/modified/untracked status. Off by default
+# because it spawns one `git status` per repo (in parallel, bounded). `g`
+# toggles it in the TUI, `--git` for one run.
+git = false
+
+mouse = true
+
+# Not set on purpose: `status` would narrow EVERY mode, including
+# `plans --json`, which is meant to be a full dump for scripts and agents.
+# Pass --status on the command line instead.
