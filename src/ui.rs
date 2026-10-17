@@ -1034,17 +1034,22 @@ fn body_lines(title: &str, body: &str) -> Vec<Line<'static>> {
     {
         lines.next();
     }
+    // Inside a code fence, `#` starts a shell comment, not a heading.
+    let mut in_fence = false;
     lines
         .map(|line| {
             let trimmed = line.trim_start();
-            let style = if trimmed.to_lowercase().starts_with("## handoff prompt") {
+            let style = if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+                in_fence = !in_fence;
+                Style::new().fg(Color::DarkGray)
+            } else if in_fence {
+                return Line::raw(line.to_string());
+            } else if trimmed.to_lowercase().starts_with("## handoff prompt") {
                 Style::new()
                     .add_modifier(Modifier::BOLD)
                     .fg(Color::Indexed(114))
             } else if line.starts_with('#') {
                 Style::new().add_modifier(Modifier::BOLD)
-            } else if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-                Style::new().fg(Color::DarkGray)
             } else {
                 return Line::raw(line.to_string());
             };
@@ -1441,6 +1446,18 @@ mod tests {
         assert_eq!(text.last().unwrap(), "END-MARKER");
         assert!(!text.iter().any(|l| l == "# My Plan"));
         assert_eq!(text.len(), 63);
+    }
+
+    #[test]
+    fn hashes_inside_code_fences_are_not_headings() {
+        let lines = body_lines("T", "## Steps\n```sh\n# a comment\n```\n");
+        assert!(
+            lines[0].spans[0]
+                .style
+                .add_modifier
+                .contains(Modifier::BOLD)
+        );
+        assert!(lines[2].spans[0].style.add_modifier.is_empty());
     }
 
     #[test]

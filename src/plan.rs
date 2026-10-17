@@ -148,7 +148,9 @@ pub struct Plan {
     pub slug: String,
     pub title: String,
     pub status: Status,
-    /// The raw `status:` value as written, quotes and `#` intact.
+    /// The raw `status:` value as written, quotes and `#` intact. For an
+    /// inferred status, the body `**Status:**` text (`None` for a filename
+    /// prefix).
     pub status_raw: Option<String>,
     /// The status came from a body `**Status:**` line or a filename prefix,
     /// not from frontmatter.
@@ -406,9 +408,10 @@ fn first_status_word(raw: &str) -> &str {
 }
 
 /// A legacy `TODO-`/`WIP-`/`UAT-`/`DONE-`/`DROPPED-` filename prefix.
+/// Uppercase only, so `todo-app.md` or `done-criteria.md` stay unknown.
 fn status_from_stem(stem: &str) -> Option<Status> {
     let (prefix, _) = stem.split_once('-')?;
-    match prefix.to_ascii_uppercase().as_str() {
+    match prefix {
         "TODO" => Some(Status::Todo),
         "WIP" => Some(Status::Wip),
         "UAT" => Some(Status::Uat),
@@ -976,6 +979,13 @@ mod tests {
         assert_eq!(h.status, Status::Done);
         assert!(h.status_raw.is_none());
         assert!(h.status_inferred);
+    }
+
+    #[test]
+    fn lowercase_filename_prefix_is_not_a_status() {
+        let h = parse_header("# T\n", "todo-app-redesign", None);
+        assert_eq!(h.status, Status::Unknown);
+        assert!(!h.status_inferred);
     }
 
     #[test]

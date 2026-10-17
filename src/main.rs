@@ -84,7 +84,8 @@ JSON FIELDS:
   path, repo_root, repo_name, rel_path, slug, title,
   status (TODO/WIP/UAT/DONE/DROPPED/UNKNOWN/other label), status_key
   (todo/wip/uat/done/dropped/unknown/other, stable for matching), status_raw
-  (exactly as written in the frontmatter, e.g. \"#UAT\" or \"ready\"),
+  (exactly as written, e.g. \"#UAT\" or \"ready\"; for an inferred status, the
+  body **Status:** text),
   status_inferred (true when the status came from a body **Status:** line or a
   TODO-/WIP-/UAT-/DONE-/DROPPED- filename prefix, not frontmatter),
   date_created, date_updated (YYYY-MM-DD), age_days (days since date_updated,
@@ -101,9 +102,9 @@ them you get the TUI.
 
 STATUS DEFAULTS: machine modes dump everything unless you pass --status or the
 config sets one; --list shows live work (TODO/WIP/UAT); the TUI shows live work
-plus UNKNOWN, which is most of the legacy corpus. All modes drop worktree
-copies of a main-checkout plan unless --worktrees is passed or the config sets
-hide_worktree_dupes = false.";
+plus UNKNOWN, which is most of the legacy corpus. Every mode but --dupes drops
+worktree copies of a main-checkout plan unless --worktrees is passed or the
+config sets hide_worktree_dupes = false.";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -614,12 +615,15 @@ fn resolve_mouse(cli: &Cli, config: &Config) -> bool {
 }
 
 /// Worktree copies are hidden unless `--worktrees` or the config says show.
-/// `--no-worktrees` beats the config.
+/// `--no-worktrees` beats the config. `--dupes` shows them: listing copies is
+/// its whole job.
 fn resolve_hide_worktree_dupes(cli: &Cli, config: &Config) -> bool {
     if cli.show_worktrees {
         false
     } else if cli.no_worktrees {
         true
+    } else if cli.dupes {
+        false
     } else {
         config.hide_worktree_dupes.unwrap_or(true)
     }
@@ -649,7 +653,8 @@ struct PlanJson<'a> {
     /// Stable machine key (`todo`, `wip`, `uat`, `done`, `dropped`,
     /// `unknown`, `other`).
     status_key: &'static str,
-    /// Exactly what the frontmatter said, e.g. `#UAT`.
+    /// Exactly what the frontmatter said, e.g. `#UAT`, or the body
+    /// `**Status:**` text when the status was inferred.
     status_raw: Option<&'a str>,
     /// `true` when the status came from a body `**Status:**` line or a
     /// filename prefix instead of frontmatter.
