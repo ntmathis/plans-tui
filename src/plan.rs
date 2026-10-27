@@ -757,12 +757,7 @@ fn rewrite_status(content: &str, status: &Status, today: NaiveDate) -> Option<St
         }
     };
 
-    write(
-        &mut lines,
-        status_at,
-        "status",
-        status.label(),
-    );
+    write(&mut lines, status_at, "status", status.label());
     write(
         &mut lines,
         updated_at,
