@@ -3,6 +3,8 @@ name: release
 # Push a vX.Y.Z tag to release: publish to crates.io, then cut the GitHub
 # release. crates.io auth is trusted publishing (OIDC), configured on the
 # crate's settings page, so no registry token lives in the repo.
+# Actions are pinned to commit SHAs and there is no build cache, because this
+# job holds a crates.io token and write access to the repo.
 on:
   push:
     tags: ["v*"]
@@ -14,11 +16,9 @@ jobs:
       contents: write # create the release
       id-token: write # crates.io trusted publishing
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
       - name: Tag matches Cargo.toml version
         run: |
@@ -32,7 +32,7 @@ jobs:
         run: cargo test
 
       # Skip the upload when this version is already on crates.io, so the
-      # workflow can be re-run, and v0.1.0 (published by hand) gets a release.
+      # workflow can be re-run after a later step fails.
       - name: Check crates.io
         id: crates
         run: |
@@ -40,7 +40,7 @@ jobs:
             "https://crates.io/api/v1/crates/plans-tui/${GITHUB_REF_NAME#v}")
           echo "published=$([ "$status" = 200 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
-      - uses: rust-lang/crates-io-auth-action@v1
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
         if: steps.crates.outputs.published == 'false'
         id: auth
 
