@@ -26,7 +26,7 @@ dateCreated: 2026-10-15
 dateUpdated: 2026-10-15
 tags: [plan, notes-app]
 owner: unassigned
-status: #WIP
+status: WIP
 ---
 
 # Add offline full-text search
@@ -39,7 +39,7 @@ Read this plan, then follow it step by step. Commit after each step.
 ```
 ```
 
-Status is one of `#TODO`, `#WIP`, `#UAT`, `#DONE`, `#DROPPED`. The
+Status is one of `TODO`, `WIP`, `UAT`, `DONE`, `DROPPED`. The
 `## Handoff Prompt` section is optional: `Y` synthesizes one from the plan's
 location when it is missing. The full convention — including what each status
 means and how plans move between them — is in

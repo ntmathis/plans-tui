@@ -330,10 +330,10 @@ mod tests {
         assert!(report.errors.is_empty());
 
         let a = std::fs::read_to_string(&plan_a).unwrap();
-        assert!(a.contains("status: #TODO"));
+        assert!(a.contains("status: TODO"));
         assert!(a.contains("dateUpdated: 2026-01-01"));
         let b = std::fs::read_to_string(&plan_b).unwrap();
-        assert!(b.contains("status: #WIP"));
+        assert!(b.contains("status: WIP"));
         assert!(b.contains("dateUpdated: 2026-02-02"));
 
         // A second undo has nothing left to revert.
@@ -364,7 +364,7 @@ mod tests {
         assert_eq!(report.files, 2);
         // The oldest batch wins, because both touch the same file.
         let text = std::fs::read_to_string(&plan).unwrap();
-        assert!(text.contains("status: #TODO"));
+        assert!(text.contains("status: TODO"));
         assert!(text.contains("dateUpdated: 2026-01-01"));
         let _ = std::fs::remove_dir_all(&dir);
     }

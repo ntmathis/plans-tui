@@ -1205,12 +1205,12 @@ fn draw_status_edit(frame: &mut Frame, area: Rect, app: &App) {
     lines.push(Line::from(Span::styled(
         if edit.targets.len() == 1 {
             format!(
-                "  enter: write status: #{} · dateUpdated: {today}",
+                "  enter: write status: {} · dateUpdated: {today}",
                 edit.choice.label()
             )
         } else {
             format!(
-                "  enter: write status: #{} to {} plans · dateUpdated: {today}",
+                "  enter: write status: {} to {} plans · dateUpdated: {today}",
                 edit.choice.label(),
                 edit.targets.len() - skipped
             )

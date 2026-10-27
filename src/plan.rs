@@ -639,7 +639,7 @@ pub fn synthesize_handoff(plan: &Plan) -> String {
          {title}\n\
          \n\
          Read the plan and execute it. Commit in small steps as you go; never rewrite git history.\n\
-         When the acceptance criteria pass, set the plan's frontmatter status: to #UAT (or #DONE if\n\
+         When the acceptance criteria pass, set the plan's frontmatter status: to UAT (or DONE if\n\
          you verified it yourself), bump dateUpdated:, and commit that with the work.\n",
         repo = plan.repo_root.display(),
         rel = plan.rel_path,
@@ -761,7 +761,7 @@ fn rewrite_status(content: &str, status: &Status, today: NaiveDate) -> Option<St
         &mut lines,
         status_at,
         "status",
-        &format!("#{}", status.label()),
+        status.label(),
     );
     write(
         &mut lines,
@@ -1008,7 +1008,7 @@ mod tests {
         let out = rewrite_status(content, &Status::Uat, today).unwrap();
         assert_eq!(
             out,
-            "---\ndateCreated: 2026-01-01\ndateUpdated: 2026-09-14\ntags: [plan, a]\nowner: unassigned\nstatus: #UAT\n---\n\n# Title\n\nbody — untouched\n"
+            "---\ndateCreated: 2026-01-01\ndateUpdated: 2026-09-14\ntags: [plan, a]\nowner: unassigned\nstatus: UAT\n---\n\n# Title\n\nbody — untouched\n"
         );
     }
 
@@ -1018,7 +1018,7 @@ mod tests {
         let out = rewrite_status("---\ntags: [plan]\n---\n\nbody\n", &Status::Done, today).unwrap();
         assert_eq!(
             out,
-            "---\ntags: [plan]\nstatus: #DONE\ndateUpdated: 2026-09-14\n---\n\nbody\n"
+            "---\ntags: [plan]\nstatus: DONE\ndateUpdated: 2026-09-14\n---\n\nbody\n"
         );
     }
 
@@ -1033,7 +1033,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             out,
-            "---\r\nstatus: #WIP\r\ndateUpdated: 2026-09-14\r\n---\r\nbody\r\n"
+            "---\r\nstatus: WIP\r\ndateUpdated: 2026-09-14\r\n---\r\nbody\r\n"
         );
     }
 
@@ -1054,7 +1054,7 @@ mod tests {
         set_status_in_file(&path, &Status::Uat, date(2026, 9, 14).unwrap()).unwrap();
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
-            "---\nstatus: #UAT\ndateUpdated: 2026-09-14\n---\n\n# X\n"
+            "---\nstatus: UAT\ndateUpdated: 2026-09-14\n---\n\n# X\n"
         );
         // No temp file left behind.
         let leftovers: Vec<_> = std::fs::read_dir(&dir)
@@ -1079,7 +1079,7 @@ mod tests {
         set_status_and_date_in_file(&path, &Status::Wip, date(2026, 3, 3).unwrap()).unwrap();
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
-            "---\nstatus: #WIP\ndateUpdated: 2026-03-03\n---\n\n# X\n"
+            "---\nstatus: WIP\ndateUpdated: 2026-03-03\n---\n\n# X\n"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

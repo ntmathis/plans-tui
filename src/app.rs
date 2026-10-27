@@ -1399,12 +1399,12 @@ impl App {
 
         let mut message = if single && written == 1 {
             format!(
-                "{} → #{}",
+                "{} → {}",
                 only_rel_path.rsplit('/').next().unwrap_or(&only_rel_path),
                 edit.choice.label()
             )
         } else {
-            format!("marked {written} plans #{}", edit.choice.label())
+            format!("marked {written} plans {}", edit.choice.label())
         };
         if skipped > 0 {
             message.push_str(&format!(" · {skipped} skipped (no frontmatter)"));
@@ -2182,7 +2182,7 @@ mod tests {
             .filter(|slug| {
                 std::fs::read_to_string(dir.join(format!("{slug}.md")))
                     .unwrap()
-                    .contains("status: #DONE")
+                    .contains("status: DONE")
             })
             .count();
         assert_eq!(done, 2, "exactly the two selected plans change");
@@ -2226,7 +2226,7 @@ mod tests {
         assert!(
             std::fs::read_to_string(dir.join("2026-01-01-a.md"))
                 .unwrap()
-                .contains("status: #DONE")
+                .contains("status: DONE")
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2362,7 +2362,7 @@ mod tests {
 
         for slug in ["2026-01-01-a", "2026-01-02-b"] {
             let text = std::fs::read_to_string(dir.join(format!("{slug}.md"))).unwrap();
-            assert!(text.contains("status: #DONE"), "{slug} was marked done");
+            assert!(text.contains("status: DONE"), "{slug} was marked done");
             assert!(
                 !text.contains("dateUpdated: 2026-01-01"),
                 "{slug} bumped its date"
@@ -2378,7 +2378,7 @@ mod tests {
         app.undo_last_batch();
         for slug in ["2026-01-01-a", "2026-01-02-b"] {
             let text = std::fs::read_to_string(dir.join(format!("{slug}.md"))).unwrap();
-            assert!(text.contains("status: #TODO"), "{slug} was restored");
+            assert!(text.contains("status: TODO"), "{slug} was restored");
             assert!(
                 text.contains("dateUpdated: 2026-01-01"),
                 "{slug} date restored"
