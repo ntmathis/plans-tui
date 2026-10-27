@@ -9,7 +9,7 @@ another executes.
 ## Install
 
 ```bash
-cargo install --git https://github.com/ntmathis/plans-tui
+cargo install plans-tui
 ```
 
 The package is `plans-tui`; the binary it installs is `plans`, because the

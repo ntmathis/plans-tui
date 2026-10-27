@@ -2,7 +2,7 @@
 name = "plans-tui"
 version = "0.1.0"
 edition = "2024"
-description = "Global plan dashboard across every repo in ~/src"
+description = "Terminal dashboard for markdown plan files across all your repos"
 license = "MIT"
 repository = "https://github.com/ntmathis/plans-tui"
 readme = "README.md"
