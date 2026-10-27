@@ -76,7 +76,7 @@ Keys in the TUI:
 | `Tab` | toggle the detail pane (right side when wide, bottom half when tall or narrow) |
 | mouse | wheel scrolls · click selects · drag the detail pane's border to resize |
 | `/` | fuzzy filter — Enter commits, Esc clears |
-| `1`–`5` | toggle TODO / WIP / UAT / DONE / DROPPED |
+| `1`–`6` | toggle TODO / WIP / UAT / DONE / DROPPED / UNKNOWN |
 | `a` | show every status |
 | `s` | cycle grouping: status → repo → week → none |
 | `y` / `Y` | copy the handoff prompt / a synthesized one |

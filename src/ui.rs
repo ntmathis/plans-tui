@@ -321,6 +321,7 @@ fn handle_key(
         KeyCode::Char('3') => app.toggle_status(Status::Uat),
         KeyCode::Char('4') => app.toggle_status(Status::Done),
         KeyCode::Char('5') => app.toggle_status(Status::Dropped),
+        KeyCode::Char('6') => app.toggle_status(Status::Unknown),
         KeyCode::Char('a') => app.show_all_statuses(),
         KeyCode::Char('s') => app.cycle_group(),
         KeyCode::Char('x') => app.toggle_duplicates(),
@@ -1077,7 +1078,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, app: &App) {
         ]),
         None => Line::from(Span::styled(
             " j/k move · v select · J/K extend · space toggle · h/l fold · tab detail · \
-             / search · 1-5 status · D done · u undo · a all · s group · x dupes · \
+             / search · 1-6 status · D done · u undo · a all · s group · x dupes · \
              g git · o sort · r reverse · y copy · Y synth · ? help · q quit",
             Style::new().fg(Color::DarkGray),
         )),
@@ -1109,7 +1110,7 @@ fn draw_help(frame: &mut Frame, area: Rect, app: &App) {
         ),
         ("Tab", "toggle the detail pane"),
         ("/", "fuzzy filter · Enter commits · Esc clears"),
-        ("1–5", "toggle TODO / WIP / UAT / DONE / DROPPED"),
+        ("1–6", "toggle TODO / WIP / UAT / DONE / DROPPED / UNKNOWN"),
         ("D", "mark the selection #DONE (asks to confirm)"),
         ("a", "show every status"),
         ("s", "cycle grouping: status → repo → week → none"),

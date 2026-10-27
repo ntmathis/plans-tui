@@ -1128,7 +1128,7 @@ impl App {
 
     // ---------------------------------------------------------------- filters
 
-    /// `1`-`5`. Removing the last status falls back to showing everything.
+    /// `1`-`6`. Removing the last status falls back to showing everything.
     pub fn toggle_status(&mut self, status: Status) {
         if !self.status_filter.remove(&status) {
             self.status_filter.insert(status);
