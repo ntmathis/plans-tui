@@ -1,5 +1,9 @@
 # plans-tui
 
+[![crates.io](https://img.shields.io/crates/v/plans-tui.svg)](https://crates.io/crates/plans-tui)
+[![downloads](https://img.shields.io/crates/d/plans-tui.svg)](https://crates.io/crates/plans-tui)
+[![ci](https://github.com/ntmathis/plans-tui/actions/workflows/ci.yml/badge.svg)](https://github.com/ntmathis/plans-tui/actions/workflows/ci.yml)
+
 A terminal dashboard for markdown plan files across all your repos, grouped by
 their frontmatter status — built for agent workflows where one model plans and
 another executes.
@@ -12,15 +16,16 @@ another executes.
 cargo install plans-tui
 ```
 
-The package is `plans-tui`; the binary it installs is `plans`, because the
-`plans` name on crates.io belongs to an unrelated crate. Needs Rust 1.87+.
+The package is [`plans-tui` on crates.io](https://crates.io/crates/plans-tui);
+the binary it installs is `plans`, because the `plans` name on crates.io
+belongs to an unrelated crate. Needs Rust 1.87+.
 
 ## The plan format
 
 A plan is a markdown file under a `plans/` or `docs/plans/` directory, usually
 named `YYYY-MM-DD-<slug>.md` (the date prefix is optional):
 
-```markdown
+````markdown
 ---
 dateCreated: 2026-10-15
 dateUpdated: 2026-10-15
@@ -37,7 +42,7 @@ status: WIP
 Rewrite the search path to hit a local index first.
 Read this plan, then follow it step by step. Commit after each step.
 ```
-```
+````
 
 Status is one of `TODO`, `WIP`, `UAT`, `DONE`, `DROPPED`. The
 `## Handoff Prompt` section is optional: `Y` synthesizes one from the plan's
