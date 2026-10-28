@@ -1,6 +1,6 @@
 [package]
 name = "plans-tui"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Terminal dashboard for markdown plan files across all your repos"
 license = "MIT"
